@@ -23,7 +23,7 @@ def sync(rid, updates):
     except: pass
 
 # --- 2. 漆黒・非明滅UI (1画面・暗転封殺) ---
-st.set_page_config(page_title="DEUS ONLINE", layout="centered")
+st.set_page_config(page_title="国家間Game玉 ONLINE", layout="centered")
 
 st.markdown("""
     <style>

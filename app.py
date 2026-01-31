@@ -27,7 +27,6 @@ st.set_page_config(page_title="DEUS ONLINE", layout="centered")
 
 st.markdown("""
     <style>
-    /* 全体背景とテキスト */
     html, body, [data-testid="stAppViewContainer"], .main {
         background-color: #000000 !important; color: #00ffcc !important;
         font-family: 'Hiragino Kaku Gothic Pro', 'Meiryo', sans-serif;
@@ -36,33 +35,23 @@ st.markdown("""
     
     /* 説明画面：日本語で見やすく */
     .brief-container {
-        border: 2px solid #00ffcc; padding: 20px; border-radius: 5px;
-        background: #050505; margin-bottom: 20px;
+        border: 2px solid #00ffcc; padding: 25px; border-radius: 5px;
+        background: #050505; margin-bottom: 20px; line-height: 1.6;
     }
-    .brief-h1 { color: #00ffcc; font-size: 1.5rem; font-weight: bold; border-bottom: 1px solid #00ffcc; padding-bottom: 10px; margin-bottom: 20px;}
-    .brief-section { margin-bottom: 15px; padding-left: 10px; border-left: 3px solid #00ffcc; }
+    .brief-h1 { color: #00ffcc; font-size: 1.6rem; font-weight: bold; border-bottom: 2px solid #00ffcc; padding-bottom: 10px; margin-bottom: 20px; text-align: center;}
+    .brief-section { margin-bottom: 20px; padding: 12px; border: 1px solid #333; background: #0a0a0a; }
+    .action-name { color: #00ffcc; font-size: 1.1rem; font-weight: bold; margin-bottom: 5px; display: block; }
     .prob-tag {
-        background: #003322; color: #00ffcc; padding: 2px 6px; 
-        border: 1px solid #00ffcc; border-radius: 3px; font-weight: bold;
+        background: #003322; color: #00ffcc; padding: 2px 8px; 
+        border: 1px solid #00ffcc; border-radius: 3px; font-weight: bold; margin-left: 5px;
     }
 
-    /* ボタン：白くならないように黒背景+緑枠 */
+    /* ボタン：黒背景+緑枠 */
     .stButton > button {
-        background-color: #000000 !important;
-        color: #00ffcc !important;
-        border: 1px solid #00ffcc !important;
-        border-radius: 4px !important;
-        height: 50px !important;
-        width: 100% !important;
-        transition: 0.3s;
+        background-color: #000000 !important; color: #00ffcc !important;
+        border: 1px solid #00ffcc !important; border-radius: 4px !important;
+        height: 50px !important; width: 100% !important;
     }
-    .stButton > button:hover {
-        background-color: #003322 !important;
-        border-color: #00ffcc !important;
-    }
-    
-    /* 入力フォームの色調整 */
-    input { background-color: #111 !important; color: #00ffcc !important; border: 1px solid #333 !important; }
     
     /* ステータスバー */
     .status-row { display: flex; align-items: center; margin-bottom: 8px; }
@@ -78,38 +67,48 @@ st.markdown("""
 if 'room_id' not in st.session_state: st.session_state.room_id = None
 if 'briefing' not in st.session_state: st.session_state.briefing = False
 
-# --- 4. 説明画面（日本語・確率明記） ---
+# --- 4. 説明画面（日本語・全アクション・確率網羅） ---
 if st.session_state.briefing:
     st.markdown("""
     <div class="brief-container">
-        <div class="brief-h1">【 作戦説明書 】</div>
+        <div class="brief-h1">【 戦略指令書：全アクション詳細 】</div>
         
         <div class="brief-section">
-            <b>■ 勝利条件</b><br>
-            敵国の「領土」または「植民地」を<b>0</b>にすれば勝利となります。自国のいずれかが<b>0</b>になった場合は即座に敗北です。
+            <span class="action-name">🛠️ 軍拡（核開発）</span>
+            核開発ポイントを<b>+40</b>増加させます。このポイントが高いほど「進軍」時の攻撃力が上昇します（最大攻撃力150）。
         </div>
 
         <div class="brief-section">
-            <b>■ 防衛プロトコル (確率発生)</b><br>
-            「防衛」実行時、以下の効果が抽選されます。<br>
-            ・敵の進軍を2回無効化：<span class="prob-tag">25%</span><br>
-            ・敵の核兵器を無効化：<span class="prob-tag">10%</span>
+            <span class="action-name">🛡️ 防衛（迎撃・回復）</span>
+            植民地を回復しつつ、特殊な防壁を抽選します。<br>
+            ・<b>進軍迎撃</b>：敵の進軍を2回分、完全に無効化 <span class="prob-tag">25%</span><br>
+            ・<b>対核防壁</b>：敵の核攻撃を1回、完全に無効化 <span class="prob-tag">10%</span>
         </div>
 
         <div class="brief-section">
-            <b>■ スパイ工作 (確率発生)</b><br>
-            ・敵の核ポイントを100減少：<span class="prob-tag">50%</span><br>
-            ・敵の核防壁を強制解除：<span class="prob-tag">20%</span>
+            <span class="action-name">🕵️ 工作（スパイ派遣）</span>
+            敵国の裏をかき、妨害工作を行います。<br>
+            ・<b>核妨害</b>：敵の核開発ポイントを100減少 <span class="prob-tag">50%</span><br>
+            ・<b>盾破壊</b>：敵の「対核防壁」を強制的に解除 <span class="prob-tag">20%</span>
         </div>
 
         <div class="brief-section">
-            <b>■ 占領のリスク</b><br>
-            「占領」は植民地を大きく増やしますが、リスクがあります。<br>
-            ・国内反乱（核開発pt -30）：<span class="prob-tag">33%</span>
+            <span class="action-name">⚔️ 進軍（強襲）</span>
+            敵の植民地（または領土）を攻撃します。軍拡が進んでいるほど威力が増します。敵に「盾」がある場合は、盾を1つ消費して無効化されます。
+        </div>
+
+        <div class="brief-section">
+            <span class="action-name">🚩 占領（領土拡大）</span>
+            植民地を<b>+55</b>増加させますが、不安定な統治となります。<br>
+            ・<b>国内反乱</b>：核開発ポイントが30減少 <span class="prob-tag">33%</span>
+        </div>
+
+        <div style="color:#ff4b4b; text-align:center; font-weight:bold; margin-top:10px;">
+            ⚠️ 領土（本土HP）または植民地のどちらかが0になった時点で敗北です。
         </div>
     </div>
     """, unsafe_allow_html=True)
-    if st.button("全内容を理解し、戦地へ赴く"):
+    if st.button("全アクションを理解し、作戦を開始する"):
         st.session_state.briefing = False
         st.rerun()
 
@@ -118,12 +117,12 @@ elif not st.session_state.room_id:
     st.title("🛡️ DEUS ONLINE")
     rid = st.text_input("作戦コードを入力", "7777")
     role = st.radio("役割を選択", ["p1", "p2"], horizontal=True)
-    c_name = st.text_input("あなたの国名", "帝國")
-    if st.button("作戦サーバーに接続"):
+    c_name = st.text_input("国名", "帝國")
+    if st.button("サーバーへ展開"):
         if role == "p1":
             init_data = {
                 "id": rid, "p1_hp": 1000.0, "p2_hp": 1000.0, "p1_colony": 50.0, "p2_colony": 50.0, 
-                "p1_nuke": 0.0, "p2_nuke": 0.0, "turn": "p1", "ap": 2, "chat": ["🛰️ 通信接続完了。"],
+                "p1_nuke": 0.0, "p2_nuke": 0.0, "turn": "p1", "ap": 2, "chat": ["🛰️ 接続成功。"],
                 "p1_shield": 0, "p2_shield": 0, "p1_nuke_shield": False, "p2_nuke_shield": False
             }
             supabase.table("games").delete().eq("id", rid).execute()
@@ -133,7 +132,7 @@ elif not st.session_state.room_id:
         st.session_state.briefing = True
         st.rerun()
 
-# --- 6. ゲーム本編 ---
+# --- 6. ゲーム本編 (以前のロジックを維持) ---
 else:
     data = get_game(st.session_state.room_id)
     if not data: st.rerun()
@@ -143,18 +142,16 @@ else:
 
     # 勝敗
     if data[f"{me}_colony"] <= 0 or data[f"{me}_hp"] <= 0:
-        st.error(f"【 敗北 】 {my_name}は滅亡しました。"); st.stop()
+        st.error(f"【 敗北 】 {my_name}は陥落しました。"); st.stop()
     if data[f"{opp}_colony"] <= 0 or data[f"{opp}_hp"] <= 0:
-        st.success(f"【 勝利 】 {enemy_name}の制圧を完了しました。"); st.stop()
+        st.success(f"【 勝利 】 {enemy_name}の制圧に成功。"); st.stop()
 
-    # 敵情報
+    # ゲーム画面表示 (HUD・アクション・チャット)
     st.markdown(f"**敵国: {enemy_name}** | 本土: {data[f'{opp}_hp']:.0f} | 植民地: {data[f'{opp}_colony']:.0f}")
     
-    # ログ
     logs = "".join([f"<div>{m}</div>" for m in data.get('chat', [])[-3:]])
     st.markdown(f'<div style="background:#050505; padding:8px; height:80px; font-size:0.85rem; border:1px solid #333; margin-bottom:10px;">{logs}</div>', unsafe_allow_html=True)
 
-    # 自軍ステータス
     current_atk = 45 + (my_nuke * 0.53)
     s_count = data.get(f'{me}_shield', 0)
     n_shield = "【対核防壁】" if data.get(f'{me}_nuke_shield') else ""
@@ -169,15 +166,14 @@ else:
     """, unsafe_allow_html=True)
 
     if data['turn'] == me:
-        st.write(f"あなたのターン (行動可能回数: {data['ap']})")
         c1, c2, c3, c4, c5 = st.columns(5)
         if c1.button("🛠️軍拡"):
-            sync(st.session_state.room_id, {f"{me}_nuke": min(200, my_nuke + 40), "ap": data['ap']-1, "chat": data['chat']+[f"🛠️ {my_name}：兵器開発"]})
+            sync(st.session_state.room_id, {f"{me}_nuke": min(200, my_nuke + 40), "ap": data['ap']-1, "chat": data['chat']+[f"🛠️ {my_name}：開発"]})
             st.rerun()
         if c2.button("🛡️防衛"):
             s_add = 2 if random.random() < 0.25 else 0
             ns = True if random.random() < 0.10 else data.get(f'{me}_nuke_shield', False)
-            chat = data['chat'] + ([f"🛡️ {my_name}：防衛成功"] if s_add or (ns and not data.get(f'{me}_nuke_shield')) else [])
+            chat = data['chat'] + ([f"🛡️ {my_name}：成功"] if s_add or (ns and not data.get(f'{me}_nuke_shield')) else [])
             sync(st.session_state.room_id, {f"{me}_colony": data[f"{me}_colony"]+35, f"{me}_shield": data[f"{me}_shield"]+s_add, f"{me}_nuke_shield": ns, "ap": data['ap']-1, "chat": chat})
             st.rerun()
         if c3.button("🕵️工作"):
@@ -185,18 +181,18 @@ else:
             up = {"ap": data['ap']-1}
             if sn: up[f"{opp}_nuke"] = max(0, data[f"{opp}_nuke"]-100)
             if ss: up[f"{opp}_nuke_shield"] = False
-            sync(st.session_state.room_id, {**up, "chat": data['chat']+[f"🕵️ {my_name}：工作員派遣"]})
+            sync(st.session_state.room_id, {**up, "chat": data['chat']+[f"🕵️ {my_name}：工作員"]})
             st.rerun()
         if c4.button("⚔️進軍"):
             if data[f"{opp}_shield"] > 0:
-                sync(st.session_state.room_id, {f"{opp}_shield": data[f"{opp}_shield"]-1, "ap": data['ap']-1, "chat": data['chat']+[f"⚔️ {enemy_name}が防衛"]})
+                sync(st.session_state.room_id, {f"{opp}_shield": data[f"{opp}_shield"]-1, "ap": data['ap']-1, "chat": data['chat']+[f"⚔️ {enemy_name}が盾を使用"]})
             else:
                 dmg = current_atk + random.randint(-5, 5)
-                sync(st.session_state.room_id, {f"{opp}_hp": max(0, data[f"{opp}_hp"]-dmg), "ap": data['ap']-1, "chat": data['chat']+[f"⚔️ {my_name}：総攻撃"]})
+                sync(st.session_state.room_id, {f"{opp}_hp": max(0, data[f"{opp}_hp"]-dmg), "ap": data['ap']-1, "chat": data['chat']+[f"⚔️ {my_name}：強襲"]})
             st.rerun()
         if c5.button("🚩占領"):
             rebel = random.random() < 0.33
-            sync(st.session_state.room_id, {f"{me}_colony": data[f"{me}_colony"]+55, f"{me}_nuke": max(0, my_nuke - (30 if rebel else 0)), "ap": data['ap']-1, "chat": data['chat']+[f"🚩 {my_name}：領土拡大"]})
+            sync(st.session_state.room_id, {f"{me}_colony": data[f"{me}_colony"]+55, f"{me}_nuke": max(0, my_nuke - (30 if rebel else 0)), "ap": data['ap']-1, "chat": data['chat']+[f"🚩 {my_name}：拡大"]})
             st.rerun()
         
         if data['ap'] <= 0: sync(st.session_state.room_id, {"turn": opp, "ap": 2}); st.rerun()
@@ -204,8 +200,7 @@ else:
         st.warning(f"{enemy_name}の行動を待機中...")
         time.sleep(3); st.rerun()
 
-    # チャット送信
-    t_msg = st.text_input("", placeholder="通信文を入力...", label_visibility="collapsed")
-    if st.button("通信を送信"):
+    t_msg = st.text_input("", placeholder="暗号通信...", label_visibility="collapsed")
+    if st.button("送信"):
         sync(st.session_state.room_id, {"chat": data['chat'] + [f"💬 {my_name}: {t_msg}"]})
         st.rerun()

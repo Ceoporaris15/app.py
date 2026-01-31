@@ -9,7 +9,7 @@ try:
     key = st.secrets["SUPABASE_KEY"]
     supabase = create_client(url, key)
 except:
-    st.error("Secrets設定が未完了です。")
+    st.error("Secrets設定を確認してください。")
     st.stop()
 
 def get_game(rid):
@@ -22,24 +22,27 @@ def sync(rid, updates):
     try: supabase.table("games").update(updates).eq("id", rid).execute()
     except: pass
 
-# --- 2. 漆黒のUI設定 (明滅・白ボタン・白飛びの物理封殺) ---
+# --- 2. 漆黒のUI設定 (明滅・チカチカ・白ボタンを物理封殺) ---
 st.set_page_config(page_title="DEUS ONLINE", layout="centered")
 
 st.markdown("""
     <style>
-    /* 1. 画面全体の背景色を強制固定（再読込時の白飛びを防止） */
+    /* 1. 画面全体の背景色を強制固定（再読込時の白飛び・暗転を防止） */
     html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"], .main {
         background-color: #000000 !important;
         color: #ffffff !important;
     }
     
-    /* 2. 待機中（Loading）のウィジェットを非表示にしてチカチカを防止 */
-    [data-testid="stStatusWidget"] { display: none !important; }
+    /* 2. 更新中の「薄暗いマスク」とウィジェットを完全透明化（チカチカの主因を排除） */
+    [data-testid="stStatusWidget"], [data-testid="stAppViewBlockContainer"] > div:first-child { 
+        display: none !important; 
+    }
+    div[data-testid="stVerticalBlock"] > div { border: none !important; }
     
-    /* 3. アニメーション（フェードイン等）を無効化 */
+    /* 3. アニメーションを無効化 */
     * { animation: none !important; transition: none !important; }
 
-    /* 4. ボタンの白飛び修正：押した瞬間も黒と金を維持 */
+    /* 4. ボタンの明滅修正：押した瞬間も黒と金を維持 */
     button, div[data-testid="stButton"] > button {
         background-color: #111 !important;
         color: #d4af37 !important;
@@ -70,27 +73,27 @@ st.markdown("""
 if 'room_id' not in st.session_state:
     st.session_state.room_id = None
 
-# 【ロビー：再入場時リセット】
+# 【ロビー】
 if not st.session_state.room_id:
     st.title("🛡️ DEUS: ONLINE TERMINAL")
     rid = st.text_input("作戦コード", "7777")
     role = st.radio("役割", ["p1", "p2"], horizontal=True)
     
-    if st.button("戦域接続 (リセットして開始)"):
+    if st.button("戦域接続 (初期化して開始)"):
+        # 初期データ：両国とも緩衝地帯（colony）を50保有してスタート
         init_data = {
             "id": rid, "p1_hp": 1000.0, "p2_hp": 1000.0, "p1_max": 1000.0, "p2_max": 1000.0, 
             "p1_colony": 50.0, "p2_colony": 50.0, "p1_nuke": 0.0, "p2_nuke": 0.0, 
             "p1_mil": 0.0, "p2_mil": 0.0, "p1_faction": None, "p2_faction": None,
-            "turn": "p1", "ap": 2, "chat": ["📢 戦役データリセット完了。開戦します。"]
+            "turn": "p1", "ap": 2, "chat": ["📢 戦役開始。両軍、緩衝地帯を確保済み。"]
         }
         try:
-            # APIError回避のため一度削除してから挿入
             supabase.table("games").delete().eq("id", rid).execute()
             supabase.table("games").insert(init_data).execute()
             st.session_state.room_id, st.session_state.role = rid, role
             st.rerun()
-        except Exception as e:
-            st.error(f"データベース接続に失敗しました。RLS設定を確認してください。")
+        except:
+            st.error("接続エラー。テーブル設定を確認してください。")
 
 # 【バトルフェーズ】
 else:
@@ -99,10 +102,9 @@ else:
     
     me, opp = st.session_state.role, ("p2" if st.session_state.role == "p1" else "p1")
     
-    # 陣営未選択なら選択画面
     if not data[f"{me}_faction"]:
-        f = st.selectbox("陣営プロトコルを選択", ["連合国", "枢軸國", "社会主義国"])
-        if st.button("プロトコルを確定"):
+        f = st.selectbox("陣営選択", ["連合国", "枢軸國", "社会主義国"])
+        if st.button("確定"):
             ap_val = (3 if f == "社会主義国" else 2) if me == "p1" else data['ap']
             sync(st.session_state.room_id, {f"{me}_faction": f, "ap": ap_val})
             st.rerun()
@@ -116,7 +118,7 @@ else:
         st.markdown(f"""<div class="stat-card">
             <div class="bar-label"><span>自軍本土</span><span>{data[f'{me}_hp']:.0f}/1000</span></div>
             <div class="hp-bar-bg"><div class="hp-bar-fill" style="width: {(data[f'{me}_hp']/1000)*100}%;"></div></div>
-            <div class="bar-label"><span>緩衝地帯(占領)</span><span>{data[f'{me}_colony']:.0f}</span></div>
+            <div class="bar-label"><span>占領地(緩衝)</span><span>{data[f'{me}_colony']:.0f}</span></div>
             <div class="hp-bar-bg"><div class="shield-bar-fill" style="width: {min(data[f'{me}_colony'], 100)}%"></div></div>
             <div class="bar-label"><span>核開発</span><span>{data[f'{me}_nuke']:.0f}/200</span></div>
             <div class="hp-bar-bg"><div class="nuke-bar-fill" style="width: {min(data[f'{me}_nuke']/2, 100)}%"></div></div>
@@ -125,53 +127,46 @@ else:
         st.markdown(f"""<div class="stat-card">
             <div class="bar-label"><span>敵軍領土</span><span>{data[f'{opp}_hp']:.0f}</span></div>
             <div class="hp-bar-bg"><div class="enemy-bar-fill" style="width: {(data[f'{opp}_hp']/1000)*100}%;"></div></div>
+            <div class="bar-label"><span>敵・占領地</span><span>{data[f'{opp}_colony']:.0f}</span></div>
+            <div class="hp-bar-bg"><div class="shield-bar-fill" style="width: {min(data[f'{opp}_colony'], 100)}%; opacity: 0.6;"></div></div>
             <div class="bar-label"><span>敵・核開発</span><span>{data[f'{opp}_nuke']:.0f}/200</span></div>
             <div class="hp-bar-bg"><div class="enemy-bar-fill" style="width: {min(data[f'{opp}_nuke']/2, 100)}%; opacity: 0.4;"></div></div>
         </div>""", unsafe_allow_html=True)
 
-    # アクション制御
+    # アクション
     if data['turn'] == me:
-        st.success(f"あなたのターン (残りAP: {data['ap']})")
+        st.success(f"ACTIVE TURN (AP: {data['ap']})")
         fac = data[f"{me}_faction"]
-        
-        # アクションボタン
         c1, c2, c3 = st.columns(3); c4, c5 = st.columns(2)
         
         if c1.button("🛠軍拡"):
             n_v = 40 if fac == "連合国" else 20
             sync(st.session_state.room_id, {f"{me}_mil": data[f"{me}_mil"] + 25, f"{me}_nuke": data[f"{me}_nuke"] + n_v, "ap": data['ap']-1})
             st.rerun()
-            
         if c2.button("🛡防衛"):
-            sync(st.session_state.room_id, {f"{me}_colony": data[f"{me}_colony"] + 35, "ap": data['ap']-1})
-            st.rerun()
-            
+            sync(st.session_state.room_id, {f"{me}_colony": data[f"{me}_colony"] + 35, "ap": data['ap']-1}); st.rerun()
         if c3.button("🕵️スパイ"):
-            # スパイ：確率で敵の核開発を妨害
             success = random.random() < (0.6 if fac == "連合国" else 0.35)
             if success:
                 sync(st.session_state.room_id, {f"{opp}_nuke": max(0, data[f"{opp}_nuke"]-50), "ap": data['ap']-1})
             else:
                 sync(st.session_state.room_id, {"ap": data['ap']-1})
             st.rerun()
-            
         if c4.button("⚔️進軍"):
             dmg = (data[f"{me}_mil"] * 0.5 + 20) * (1.5 if fac == "枢軸國" else 1.0)
-            sync(st.session_state.room_id, {f"{opp}_hp": max(0, data[f"{opp}_hp"] - dmg), "ap": data['ap']-1})
+            # ダメージ処理：まず敵の占領地を削り、余った分が本土へ
+            if data[f"{opp}_colony"] > 0:
+                new_colony = max(0, data[f"{opp}_colony"] - dmg)
+                sync(st.session_state.room_id, {f"{opp}_colony": new_colony, "ap": data['ap']-1})
+            else:
+                sync(st.session_state.room_id, {f"{opp}_hp": max(0, data[f"{opp}_hp"] - dmg), "ap": data['ap']-1})
             st.rerun()
-            
         if c5.button("🚩占領"):
-            # 占領：緩衝地帯を大幅に強化
-            sync(st.session_state.room_id, {f"{me}_colony": data[f"{me}_colony"] + 55, "ap": data['ap']-1})
-            st.rerun()
+            sync(st.session_state.room_id, {f"{me}_colony": data[f"{me}_colony"] + 55, "ap": data['ap']-1}); st.rerun()
 
-        # ターン終了
         if data['ap'] <= 0:
-            next_ap = 3 if data[f"{opp}_faction"] == "社会主義国" else 2
-            sync(st.session_state.room_id, {"turn": opp, "ap": next_ap})
+            sync(st.session_state.room_id, {"turn": opp, "ap": 3 if data[f"{opp}_faction"] == "社会主義国" else 2})
             st.rerun()
     else:
         st.warning("敵の行動を待機中...")
         time.sleep(2); st.rerun()
-
-    st.markdown('<div class="chat-box">' + "".join([f"<div>{m}</div>" for m in data['chat']]) + '</div>', unsafe_allow_html=True)

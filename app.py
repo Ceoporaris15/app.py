@@ -20,33 +20,33 @@ def get_game(rid):
 def sync(rid, updates):
     supabase.table("games").update(updates).eq("id", rid).execute()
 
-# ログとメッセージを追加する関数
 def add_msg(rid, current_chat, sender, text, is_log=False):
     chat = current_chat if current_chat else []
-    prefix = "📢 [LOG]:" if is_log else f"💬 [{sender}]:"
+    prefix = "📢" if is_log else f"💬[{sender}]"
     chat.append(f"{prefix} {text}")
-    # 直近8件に絞って同期
-    sync(rid, {"chat": chat[-8:]})
+    sync(rid, {"chat": chat[-6:]})
 
-# --- 3. UI/レイアウト設定 ---
+# --- 3. UI/スタイル設定 (点滅防止 & AI戦デザイン) ---
 st.set_page_config(page_title="DEUS ONLINE", layout="centered")
 
 st.markdown("""
     <style>
-    html, body, [data-testid="stAppViewContainer"] { background-color: #000; color: #FFF; overflow: hidden; }
-    .enemy-banner { background-color: #111; border-bottom: 1px solid #00f2ff; padding: 5px; text-align: center; margin: -60px -15px 10px -15px; }
-    .enemy-text { color: #00f2ff; font-weight: bold; font-size: 0.9rem; }
-    .stat-card { background: #0a0a0a; border: 1px solid #333; padding: 8px; border-radius: 4px; }
-    .bar-label { font-size: 0.7rem; color: #AAA; margin-bottom: 2px; display: flex; justify-content: space-between; }
-    .hp-bar-bg { background: #222; width: 100%; height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 4px; }
-    .hp-bar-fill { background: linear-gradient(90deg, #d4af37, #f1c40f); height: 100%; }
-    .shield-bar-fill { background: linear-gradient(90deg, #3498db, #2980b9); height: 100%; }
-    .enemy-bar-fill { background: linear-gradient(90deg, #c0392b, #e74c3c); height: 100%; }
-    .nuke-bar-fill { background: linear-gradient(90deg, #9b59b6, #8e44ad); height: 100%; }
-    /* ボタンをコンパクトに */
-    div[data-testid="column"] button { height: 35px !important; font-size: 0.75rem !important; }
-    /* チャットログエリア */
-    .chat-box { background: #050505; border: 1px solid #444; padding: 8px; height: 140px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; margin-top: 10px; }
+    /* 画面の白飛び防止 */
+    html, body, [data-testid="stAppViewContainer"] { background-color: #000 !important; color: #FFF; overflow: hidden; }
+    /* ヘッダー */
+    .enemy-banner { background-color: #111; border-bottom: 1px solid #d4af37; padding: 5px; text-align: center; margin: -60px -15px 10px -15px; }
+    .enemy-text { color: #d4af37; font-weight: bold; font-size: 0.9rem; }
+    /* ステータスカード */
+    .stat-card { background: #0a0a0a; border: 1px solid #333; padding: 10px; border-radius: 4px; }
+    .bar-label { font-size: 0.75rem; color: #AAA; margin-bottom: 2px; display: flex; justify-content: space-between; }
+    /* ゲージ類 */
+    .hp-bar-bg { background: #222; width: 100%; height: 10px; border-radius: 5px; overflow: hidden; margin-bottom: 6px; }
+    .hp-bar-fill { background: linear-gradient(90deg, #d4af37, #f1c40f); height: 100%; transition: width 0.3s; }
+    .shield-bar-fill { background: linear-gradient(90deg, #3498db, #2980b9); height: 100%; transition: width 0.3s; }
+    .nuke-bar-fill { background: linear-gradient(90deg, #9b59b6, #8e44ad); height: 100%; transition: width 0.3s; }
+    .enemy-bar-fill { background: linear-gradient(90deg, #c0392b, #e74c3c); height: 100%; transition: width 0.3s; }
+    /* ログ */
+    .chat-box { background: #000; border: 1px solid #444; padding: 10px; height: 120px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; margin-top: 10px; color: #00ffcc; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -62,7 +62,7 @@ if not st.session_state.room_id:
     if st.button("戦域接続"):
         data = get_game(rid)
         if not data:
-            supabase.table("games").insert({"id": rid, "p1_hp": 150, "p2_hp": 150, "turn": "p1", "ap": 2, "chat": ["📢 [LOG]: 作戦開始"]}).execute()
+            supabase.table("games").insert({"id": rid, "p1_hp": 150, "p2_hp": 150, "turn": "p1", "ap": 2, "p1_colony": 50, "p2_colony": 50, "chat": ["作戦開始"]}).execute()
         st.session_state.room_id = rid
         st.session_state.role = role
         st.rerun()
@@ -80,15 +80,17 @@ else:
         st.stop()
 
     # --- UI表示 ---
-    st.markdown(f'<div class="enemy-banner"><span class="enemy-text">第 {data.get("turn_count", 1)} ターン | {me.upper()} OPERATION</span></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="enemy-banner"><span class="enemy-text">TURN: {data["turn"].upper()} | UNIT: {me.upper()}</span></div>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     with col1:
         st.markdown(f"""<div class="stat-card">
-            <div class="bar-label"><span>自国本土</span><span>{data[f'{me}_hp']:.0f}</span></div>
+            <div class="bar-label"><span>自軍本土</span><span>{data[f'{me}_hp']:.0f}</span></div>
             <div class="hp-bar-bg"><div class="hp-bar-fill" style="width: {(data[f'{me}_hp']/150)*100}%;"></div></div>
-            <div class="bar-label"><span>緩衝地帯</span><span>{data[f'{me}_colony']:.0f}</span></div>
-            <div class="hp-bar-bg"><div class="shield-bar-fill" style="width: {data[f'{me}_colony']}%"></div></div>
+            <div class="bar-label"><span>緩衝地帯(占領)</span><span>{data[f'{me}_colony']:.0f}</span></div>
+            <div class="hp-bar-bg"><div class="shield-bar-fill" style="width: {min(data[f'{me}_colony'], 100)}%"></div></div>
+            <div class="bar-label"><span>自軍核開発</span><span>{data[f'{me}_nuke']:.0f}/200</span></div>
+            <div class="hp-bar-bg"><div class="nuke-bar-fill" style="width: {min(data[f'{me}_nuke']/2, 100)}%"></div></div>
         </div>""", unsafe_allow_html=True)
     with col2:
         st.markdown(f"""<div class="stat-card">
@@ -98,26 +100,41 @@ else:
             <div class="hp-bar-bg"><div class="enemy-bar-fill" style="width: {min(data[f'{opp}_nuke']/2, 100)}%; opacity: 0.5;"></div></div>
         </div>""", unsafe_allow_html=True)
 
-    # 操作
+    # 勝利判定
+    if data['p1_hp'] <= 0 or data['p2_hp'] <= 0:
+        st.error(f"GAME OVER - {'勝利' if data[opp+'_hp']<=0 else '敗北'}")
+        if st.button("REBOOT"): sync(st.session_state.room_id, {"p1_hp": 150, "p2_hp": 150, "p1_nuke": 0, "p2_nuke": 0, "turn": "p1"}); st.rerun()
+        st.stop()
+
+    # 操作パネル
     if data['turn'] == me:
-        st.info(f"あなたの指揮権 (AP: {data['ap']})")
-        c1, c2, c3, c4 = st.columns(4)
+        st.success(f"指揮権発動中 (AP: {data['ap']})")
+        fac = data[f"{me}_faction"]
+        
+        c1, c2, c3 = st.columns(3)
         if c1.button("🛠軍拡"):
-            sync(st.session_state.room_id, {f"{me}_mil": data[f"{me}_mil"] + 25, f"{me}_nuke": data[f"{me}_nuke"] + 20, "ap": data['ap']-1})
-            add_msg(st.session_state.room_id, data['chat'], me, f"{me.upper()}が軍備を拡張しました", True)
+            n_val = 40 if fac == "連合国" else 20
+            sync(st.session_state.room_id, {f"{me}_mil": data[f"{me}_mil"] + 25, f"{me}_nuke": data[f"{me}_nuke"] + n_val, "ap": data['ap']-1})
+            add_msg(st.session_state.room_id, data['chat'], me, f"軍備と核開発を推進", True)
             st.rerun()
         if c2.button("🛡防衛"):
             sync(st.session_state.room_id, {f"{me}_colony": data[f"{me}_colony"] + 30, "ap": data['ap']-1})
-            add_msg(st.session_state.room_id, data['chat'], me, f"{me.upper()}が防衛線を強化しました", True)
+            add_msg(st.session_state.room_id, data['chat'], me, f"防衛ラインを構築", True)
             st.rerun()
         if c3.button("⚔️進軍"):
-            dmg = data[f"{me}_mil"] * 0.5 + 20
+            dmg = (data[f"{me}_mil"] * 0.5 + 20) * (1.5 if fac == "枢軸國" else 1.0)
             sync(st.session_state.room_id, {f"{opp}_hp": data[f"{opp}_hp"] - dmg, "ap": data['ap']-1})
-            add_msg(st.session_state.room_id, data['chat'], me, f"{me.upper()}が総攻撃を仕掛けました", True)
+            add_msg(st.session_state.room_id, data['chat'], me, f"敵陣地へ攻撃を敢行", True)
             st.rerun()
-        if c4.button("🕵️スパイ"):
-            sync(st.session_state.room_id, {f"{opp}_nuke": max(0, data[f"{opp}_nuke"]-40), "ap": data['ap']-1})
-            add_msg(st.session_state.room_id, data['chat'], me, f"{me.upper()}のスパイが敵核施設を破壊", True)
+            
+        c4, c5 = st.columns(2)
+        if c4.button("🚩占領"):
+            sync(st.session_state.room_id, {f"{me}_colony": data[f"{me}_colony"] + 40, "ap": data['ap']-1})
+            add_msg(st.session_state.room_id, data['chat'], me, f"緩衝地帯を拡大", True)
+            st.rerun()
+        if c5.button("☢️ 核発射", disabled=data[f"{me}_nuke"] < 200):
+            sync(st.session_state.room_id, {f"{opp}_hp": data[f"{opp}_hp"]*0.15, f"{me}_nuke": 0, "ap": data['ap']-1})
+            add_msg(st.session_state.room_id, data['chat'], me, f"核兵器が使用された！", True)
             st.rerun()
         
         if data['ap'] <= 0:
@@ -125,14 +142,11 @@ else:
             st.rerun()
     else:
         st.warning("敵軍の行動を待機中...")
-        time.sleep(3)
+        time.sleep(2)
         st.rerun()
 
-    # --- チャット & 戦況ログ ---
+    # チャット & ログ
     st.markdown('<div class="chat-box">' + "".join([f"<div>{m}</div>" for m in data['chat']]) + '</div>', unsafe_allow_html=True)
-    
-    msg_input = st.text_input("通信送信 (Enterで送信)", key="chat_input")
+    msg = st.text_input("通信入力", key="comms")
     if st.button("送信"):
-        if msg_input:
-            add_msg(st.session_state.room_id, data['chat'], me, msg_input)
-            st.rerun()
+        if msg: add_msg(st.session_state.room_id, data['chat'], me, msg); st.rerun()

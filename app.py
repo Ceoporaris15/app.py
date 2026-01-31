@@ -22,74 +22,100 @@ def sync(rid, updates):
     try: supabase.table("games").update(updates).eq("id", rid).execute()
     except: pass
 
-# --- 2. UIスタイル ---
+# --- 2. 演出用オーディオ & CSS ---
 st.set_page_config(page_title="DEUS ONLINE", layout="centered")
+
+# 効果音を再生する関数（非表示のiframeで再生）
+def play_sound(url):
+    st.markdown(f'<iframe src="{url}" allow="autoplay" style="display:none"></iframe>', unsafe_allow_html=True)
+
 st.markdown("""
     <style>
-    div[data-testid="stStatusWidget"], 
-    div[data-testid="stAppViewBlockContainer"] > div:first-child { 
-        visibility: hidden !important; display: none !important; opacity: 0 !important;
+    /* 走査線・ノイズ演出 */
+    .main {
+        background-color: #000000 !important;
+        background-image: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+        background-size: 100% 2px, 3px 100%;
+        color: #00ffcc !important;
     }
-    html, body, [data-testid="stAppViewContainer"], .main {
-        background-color: #000000 !important; color: #ffffff !important;
-        overflow: hidden !important; height: 100vh;
+    div[data-testid="stStatusWidget"] { display: none; }
+    
+    /* 極秘資料カード */
+    .briefing-card {
+        background: rgba(10, 15, 10, 0.9); border: 2px solid #00ffcc; padding: 25px;
+        border-radius: 5px; font-family: 'Courier New', Courier, monospace;
+        box-shadow: 0 0 20px rgba(0, 255, 204, 0.2); position: relative;
     }
+    .briefing-card::before {
+        content: "TOP SECRET - EYES ONLY"; position: absolute; top: -10px; right: 10px;
+        background: #ff0000; color: white; padding: 2px 10px; font-size: 0.7rem;
+    }
+    .brief-title { color: #00ffcc; font-size: 1.8rem; text-shadow: 0 0 10px #00ffcc; margin-bottom: 15px; }
+    
+    /* ストーリーテキスト */
+    .story-text { font-style: italic; color: #d4af37; margin: 20px 0; border-left: 3px solid #d4af37; padding-left: 10px; font-size: 0.9rem; }
+
+    /* 各種バー */
     .status-row { display: flex; align-items: center; margin-bottom: 4px; }
-    .status-label { width: 65px; font-size: 0.65rem; color: #aaa; font-weight: bold; }
-    .bar-container { flex-grow: 1; }
-    .enemy-mini-hud {
-        background: #0a0a0a; border: 1px solid #441111;
-        padding: 5px; margin-bottom: 5px; border-radius: 4px;
-        display: flex; justify-content: space-around; font-size: 0.6rem;
-    }
-    .live-log {
-        background: #080808; border-left: 2px solid #00ffcc;
-        padding: 5px; margin-bottom: 5px; font-family: monospace;
-        font-size: 0.7rem; color: #00ffcc; height: 65px; overflow-y: auto;
-    }
-    .shield-text { color: #3498db; font-weight: bold; }
-    .self-hud {
-        background: #050505; border: 1px solid #d4af37;
-        padding: 10px; margin-bottom: 8px; border-radius: 8px;
-    }
-    .bar-bg { background: #111; width: 100%; height: 10px; border-radius: 5px; border: 1px solid #222; overflow: hidden; }
-    .fill-hp { background: linear-gradient(90deg, #d4af37, #f1c40f); height: 100%; }
-    .fill-sh { background: linear-gradient(90deg, #3498db, #2980b9); height: 100%; }
-    .fill-nk { background: linear-gradient(90deg, #9b59b6, #8e44ad); height: 100%; }
-    button {
-        background-color: #111 !important; color: #d4af37 !important;
-        border: 1px solid #d4af37 !important; height: 45px !important;
-        font-size: 0.7rem !important; transition: none !important;
-    }
-    .stButton > button[kind="primary"] {
-        background: linear-gradient(45deg, #ff0000, #990000) !important;
-        color: white !important; border: 2px solid #ffffff !important;
-        height: 50px !important; font-size: 1rem !important;
-    }
+    .status-label { width: 70px; font-size: 0.65rem; color: #00ffcc; font-weight: bold; }
+    .bar-bg { background: #111; width: 100%; height: 10px; border-radius: 2px; border: 1px solid #00ffcc; overflow: hidden; }
+    .fill-hp { background: #00ffcc; height: 100%; box-shadow: 0 0 10px #00ffcc; }
+    .fill-sh { background: #3498db; height: 100%; }
+    .fill-nk { background: #9b59b6; height: 100%; }
+    
+    button { background-color: #000 !important; color: #00ffcc !important; border: 1px solid #00ffcc !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. メインロジック ---
-if 'room_id' not in st.session_state:
-    st.session_state.room_id = None
+# 音源URL (短い電子音)
+BEEP = "https://www.soundjay.com/buttons/sounds/button-29.mp3"
+ALERT = "https://www.soundjay.com/buttons/sounds/button-3.mp3"
 
-if not st.session_state.room_id:
-    st.title("🛡️ DEUS ONLINE")
-    rid = st.text_input("作戦コード", "7777")
-    role = st.radio("役割", ["p1", "p2"], horizontal=True)
-    c_name = st.text_input("国名を入力", "帝国")
-    if st.button("DEPLOY"):
+# --- 3. セッション管理 ---
+if 'room_id' not in st.session_state: st.session_state.room_id = None
+if 'briefing' not in st.session_state: st.session_state.briefing = False
+
+# --- 4. ブリーフィング画面 ---
+if st.session_state.briefing:
+    st.markdown("""
+    <div class="briefing-card">
+        <div class="brief-title">🛰️ 作戦概要：DEUS-VII</div>
+        <p>これより貴官に本紛争の交戦規定を伝達する。</p>
+        <div class="story-text">「歴史は勝者によって書かれる。敗者に残されるのは、放射能に汚染された砂漠だけだ。」</div>
+        <hr style="border-color:#00ffcc">
+        <b>■ 勝利条件</b>: 敵の領土または植民地を0にせよ。<br>
+        <b>■ 戦術核</b>: 軍拡により威力が上昇する。発射は最大の慈悲である。<br>
+        <b>■ 防衛/工作</b>: 運も実力のうちだ。沈黙こそが最大の防御となり得る。<br>
+        <b>■ 反乱</b>: 無計画な占領は、自国の首を絞める結果となるだろう。
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("全規定を承認 (UNDERSTOOD)", use_container_width=True):
+        play_sound(BEEP)
+        st.session_state.briefing = False
+        st.rerun()
+
+# --- 5. 初期設定画面 ---
+elif not st.session_state.room_id:
+    st.title("📟 DEUS TERMINAL")
+    rid = st.text_input("ACCESS CODE", "7777")
+    role = st.radio("SELECT ROLE", ["p1", "p2"], horizontal=True)
+    c_name = st.text_input("COUNTRY NAME", "帝國")
+    if st.button("CONNECTION ESTABLISH"):
+        play_sound(BEEP)
         if role == "p1":
             init_data = {
                 "id": rid, "p1_hp": 1000.0, "p2_hp": 1000.0, "p1_colony": 50.0, "p2_colony": 50.0, 
-                "p1_nuke": 0.0, "p2_nuke": 0.0, "turn": "p1", "ap": 2, "chat": ["🛰️ 通信確立。"],
+                "p1_nuke": 0.0, "p2_nuke": 0.0, "turn": "p1", "ap": 2, "chat": ["🛰️ システム起動。期待しているぞ。"],
                 "p1_shield": 0, "p2_shield": 0, "p1_nuke_shield": False, "p2_nuke_shield": False
             }
             supabase.table("games").delete().eq("id", rid).execute()
             supabase.table("games").insert(init_data).execute()
         sync(rid, {f"{role}_country": c_name})
         st.session_state.room_id, st.session_state.role = rid, role
+        st.session_state.briefing = True
         st.rerun()
+
+# --- 6. ゲーム本編 ---
 else:
     data = get_game(st.session_state.room_id)
     if not data: st.rerun()
@@ -97,84 +123,86 @@ else:
     my_name, enemy_name = data.get(f'{me}_country', '自国'), data.get(f'{opp}_country', '敵国')
     my_nuke = data.get(f'{me}_nuke', 0)
 
-    # 勝敗判定
+    # --- 終戦ストーリー判定 ---
     if data[f"{me}_colony"] <= 0 or data[f"{me}_hp"] <= 0:
-        st.error(f"敗北: {my_name}崩壊"); st.stop()
+        st.markdown(f"""<div class="briefing-card" style="border-color:#ff0000">
+            <div class="brief-title" style="color:#ff0000">【 敗 戦 】</div>
+            <p>{my_name}の灯火は消えた。都市は静まり返り、かつての栄光は瓦礫の下に埋もれた。</p>
+            <div class="story-text">「我々は勝利を夢見た。しかし、残されたのは静寂と、勝者が掲げる見知らぬ旗だけだった。」</div>
+        </div>""", unsafe_allow_html=True)
+        if st.button("ターミナルを閉じる"): st.session_state.room_id = None; st.rerun()
+        st.stop()
+    
     if data[f"{opp}_colony"] <= 0 or data[f"{opp}_hp"] <= 0:
-        st.success(f"勝利: {enemy_name}征服"); st.stop()
+        st.markdown(f"""<div class="briefing-card">
+            <div class="brief-title">【 凱 旋 】</div>
+            <p>世界は{my_name}の軍靴の音に震えている。敵軍は瓦解し、新たな秩序が定義された。</p>
+            <div class="story-text">「平和とは、敵がいなくなった状態のことを指すのだ。貴官の功績は永遠に刻まれるだろう。」</div>
+        </div>""", unsafe_allow_html=True)
+        if st.button("次なる戦域へ"): st.session_state.room_id = None; st.rerun()
+        st.stop()
 
-    # 1. 敵軍HUD
-    st.markdown(f'<div class="enemy-mini-hud"><div>敵: {enemy_name}</div><div>本土: {data.get(f"{opp}_hp",0):.0f}</div><div>植民地: {data.get(f"{opp}_colony",0):.0f}</div></div>', unsafe_allow_html=True)
-
-    # 2. ログ
+    # --- HUD表示 ---
+    st.markdown(f'<div class="enemy-mini-hud">敵: {enemy_name} | 本土: {data[f"{opp}_hp"]:.0f} | 植民地: {data[f"{opp}_colony"]:.0f}</div>', unsafe_allow_html=True)
     logs = "".join([f"<div>{m}</div>" for m in data.get('chat', [])[-3:]])
     st.markdown(f'<div class="live-log">{logs}</div>', unsafe_allow_html=True)
 
-    # 3. 自軍HUD
     current_atk = 45 + (my_nuke * 0.53)
     s_count = data.get(f'{me}_shield', 0)
-    n_shield = "【核防壁稼働中】" if data.get(f'{me}_nuke_shield') else ""
+    n_shield = "⚠️対核防壁" if data.get(f'{me}_nuke_shield') else ""
     st.markdown(f"""
     <div class="self-hud">
-        <div style="font-size:0.9rem; color:#d4af37; font-weight:bold; margin-bottom:5px;">{my_name} <span style="font-size:0.6rem; color:#3498db;">🛡️x{s_count} {n_shield}</span></div>
-        <div class="status-row"><div class="status-label">領土</div><div class="bar-container"><div class="bar-bg"><div class="fill-hp" style="width:{data.get(f'{me}_hp',0)/10}%"></div></div></div></div>
-        <div class="status-row"><div class="status-label">植民地</div><div class="bar-container"><div class="bar-bg"><div class="fill-sh" style="width:{data.get(f'{me}_colony',0)}%"></div></div></div></div>
-        <div class="status-row"><div class="status-label">核開発</div><div class="bar-container"><div class="bar-bg"><div class="fill-nk" style="width:{my_nuke/2}%"></div></div></div></div>
+        <div style="font-size:0.9rem; margin-bottom:5px;">{my_name} <span style="font-size:0.6rem; color:#3498db;">SHIELD: {s_count} {n_shield}</span></div>
+        <div class="status-row"><div class="status-label">領土</div><div class="bar-bg"><div class="fill-hp" style="width:{data[f'{me}_hp']/10}%"></div></div></div>
+        <div class="status-row"><div class="status-label">植民地</div><div class="bar-bg"><div class="fill-sh" style="width:{data[f'{me}_colony']}%"></div></div></div>
+        <div class="status-row"><div class="status-label">核開発</div><div class="bar-bg"><div class="fill-nk" style="width:{my_nuke/2}%"></div></div></div>
     </div>
     """, unsafe_allow_html=True)
 
-    # 4. アクション
+    # --- アクション ---
     if data['turn'] == me:
-        pref = f"[{my_name}]"
-        if my_nuke >= 200:
-            if st.button("🚨 核兵器発射 (NUKE)", type="primary", use_container_width=True):
-                if data.get(f'{opp}_nuke_shield'):
-                    msg = f"☢️ {my_name}の核を{enemy_name}が完全に無効化した！"
-                    sync(st.session_state.room_id, {f"{me}_nuke": 0, f"{opp}_nuke_shield": False, "ap": 0, "chat": data['chat']+[msg]})
-                else:
-                    sync(st.session_state.room_id, {f"{opp}_hp": data[f"{opp}_hp"]*0.2, f"{opp}_colony": data[f"{opp}_colony"]*0.2, f"{me}_nuke": 0, "ap": 0, "chat": data['chat']+[f"☢️ {my_name}の核投下。"]})
-                st.rerun()
-
         c1, c2, c3, c4, c5 = st.columns(5)
-        conf = {"use_container_width": True}
-        if c1.button("🛠️\n軍拡", **conf):
-            sync(st.session_state.room_id, {f"{me}_nuke": min(200, my_nuke + 40), "ap": data['ap']-1, "chat": data['chat']+[f"🛠️ {pref} 軍拡。"]})
+        if c1.button("🛠️\n軍拡"):
+            play_sound(BEEP)
+            sync(st.session_state.room_id, {f"{me}_nuke": min(200, my_nuke + 40), "ap": data['ap']-1, "chat": data['chat']+[f"🛠️ {my_name}: 軍拡完了。"]})
             st.rerun()
-        if c2.button("🛡️\n防衛", **conf):
-            # 1/4の確率で進軍2回無効(Shield+2), 1/10の確率で核無効(NukeShield)
+        if c2.button("🛡️\n防衛"):
+            play_sound(BEEP)
             s_add = 2 if random.random() < 0.25 else 0
-            ns_active = True if random.random() < 0.10 else data.get(f'{me}_nuke_shield', False)
-            msg = f"🛡️ {pref} 防衛網強化"
-            if s_add: msg += "【迎撃体制】"
-            if ns_active and not data.get(f'{me}_nuke_shield'): msg += "【対核防壁】"
-            sync(st.session_state.room_id, {f"{me}_colony": data[f"{me}_colony"]+35, f"{me}_shield": data[f"{me}_shield"]+s_add, f"{me}_nuke_shield": ns_active, "ap": data['ap']-1, "chat": data['chat']+[msg]})
+            ns = True if random.random() < 0.10 else data.get(f'{me}_nuke_shield', False)
+            sync(st.session_state.room_id, {f"{me}_colony": data[f"{me}_colony"]+35, f"{me}_shield": data[f"{me}_shield"]+s_add, f"{me}_nuke_shield": ns, "ap": data['ap']-1, "chat": data['chat']+( [f"🛡️ {my_name}: 防衛成功。"] if s_add or ns else [] )})
             st.rerun()
-        if c3.button("🕵️\n工作", **conf):
-            success = random.random() < 0.5
-            sync(st.session_state.room_id, {f"{opp}_nuke": max(0, data[f"{opp}_nuke"] - (100 if success else 0)), "ap": data['ap']-1, "chat": data['chat']+[f"🕵️ {pref} 工作{'成功' if success else '失敗'}。"]})
+        # ... 工作・進軍・占領も同様に play_sound(BEEP) を追加 ...
+        if c3.button("🕵️\n工作"):
+            play_sound(BEEP)
+            sn, ss = random.random() < 0.5, random.random() < 0.2
+            updates = {"ap": data['ap']-1}
+            if sn: updates[f"{opp}_nuke"] = max(0, data[f"{opp}_nuke"]-100)
+            if ss: updates[f"{opp}_nuke_shield"] = False
+            sync(st.session_state.room_id, {**updates, "chat": data['chat']+[f"🕵️ {my_name}: 潜入工作。"]})
             st.rerun()
-        if c4.button("⚔️\n進軍", **conf):
-            if data.get(f'{opp}_shield', 0) > 0:
-                msg = f"⚔️ {pref}の進軍を{enemy_name}が迎撃！"
-                sync(st.session_state.room_id, {f"{opp}_shield": data[f"{opp}_shield"]-1, "ap": data['ap']-1, "chat": data['chat']+[msg]})
+        if c4.button("⚔️\n進軍"):
+            play_sound(ALERT)
+            if data[f"{opp}_shield"] > 0:
+                sync(st.session_state.room_id, {f"{opp}_shield": data[f"{opp}_shield"]-1, "ap": data['ap']-1, "chat": data['chat']+[f"⚔️ {enemy_name}が迎撃！"]})
             else:
                 dmg = current_atk + random.randint(-5, 5)
-                new_col = max(0, data[f"{opp}_colony"] - dmg); new_hp = max(0, data[f"{opp}_hp"] - (dmg - data[f"{opp}_colony"] if dmg > data[f"{opp}_colony"] else 0))
-                sync(st.session_state.room_id, {f"{opp}_colony": new_col, f"{opp}_hp": new_hp, "ap": data['ap']-1, "chat": data['chat']+[f"⚔️ {pref} {dmg:.0f}ダメ！"]})
+                sync(st.session_state.room_id, {f"{opp}_hp": max(0, data[f"{opp}_hp"]-dmg), "ap": data['ap']-1, "chat": data['chat']+[f"⚔️ {my_name}: 強襲！"]})
             st.rerun()
-        if c5.button("🚩\n占領", **conf):
+        if c5.button("🚩\n占領"):
+            play_sound(BEEP)
             rebel = random.random() < 0.33
-            sync(st.session_state.room_id, {f"{me}_colony": data[f"{me}_colony"]+55, f"{me}_nuke": max(0, my_nuke - (30 if rebel else 0)), "ap": data['ap']-1, "chat": data['chat']+[f"🚩 {pref} {'反乱' if rebel else '占領'}。"]})
+            sync(st.session_state.room_id, {f"{me}_colony": data[f"{me}_colony"]+55, f"{me}_nuke": max(0, my_nuke - (30 if rebel else 0)), "ap": data['ap']-1, "chat": data['chat']+[f"🚩 {my_name}: 占領。"]})
             st.rerun()
+        
         if data['ap'] <= 0: sync(st.session_state.room_id, {"turn": opp, "ap": 2}); st.rerun()
     else:
-        st.warning(f"{enemy_name} 行動中...")
+        st.warning("敵の通信を傍受中...")
+        time.sleep(3); st.rerun()
 
-    # 通信
-    st.markdown("---")
-    t_msg = st.text_input("", key="chat_input", placeholder="通信...", label_visibility="collapsed")
-    if st.button("SEND", use_container_width=True) and t_msg:
-        sync(st.session_state.room_id, {"chat": get_game(st.session_state.room_id)['chat'] + [f"💬 {my_name}: {t_msg}"]})
+    # チャット
+    t_msg = st.text_input("", placeholder="暗号通信...", label_visibility="collapsed")
+    if st.button("SEND"):
+        play_sound(BEEP)
+        sync(st.session_state.room_id, {"chat": data['chat'] + [f"💬 {my_name}: {t_msg}"]})
         st.rerun()
-    
-    if data['turn'] != me: time.sleep(3); st.rerun()

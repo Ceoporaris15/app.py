@@ -48,9 +48,11 @@ if 'briefing' not in st.session_state: st.session_state.briefing = False
 
 # --- 3. アクション解説 ---
 if st.session_state.briefing:
-    st.markdown("### 🪖 最終決戦・勝利条件の変更")
-    st.info("勝利条件：敵の本土HPを0にすること（植民地が0になっても敗北にはなりませんが、防衛ができなくなります）")
-    if st.button("戦場へ展開"):
+    st.markdown("### 🪖 作戦概要：本土完全制圧")
+    st.info("【勝利条件】敵の「領土（本土HP）」を0にすること。植民地は本土を守る盾ですが、0になっても敗北ではありません。")
+    st.write("・**中立地帯**: 占領すると毎ターン開始時に核pt+15の自動供給。")
+    st.write("・**神風**: 領土20%以下で発動可能。植民地全損＋領土90%喪失と引き換えに、盾無視の400ダメージ。")
+    if st.button("戦地へ展開"):
         st.session_state.briefing = False
         st.rerun()
 
@@ -64,7 +66,7 @@ elif not st.session_state.room_id:
         if role == "p1":
             init_data = {
                 "id": rid, "p1_hp": 1000.0, "p2_hp": 1000.0, "p1_colony": 50.0, "p2_colony": 50.0, 
-                "p1_nuke": 0.0, "p2_nuke": 0.0, "turn": "p1", "ap": 2, "chat": ["🛰️ システムオンライン。"],
+                "p1_nuke": 0.0, "p2_nuke": 0.0, "turn": "p1", "ap": 2, "chat": ["🛰️ 通信確立。"],
                 "p1_shield": 0, "p2_shield": 0, "p1_nuke_shield_count": 0, "p2_nuke_shield_count": 0,
                 "neutral_owner": "none"
             }
@@ -84,28 +86,29 @@ else:
     my_name, enemy_name = data.get(f'{me}_country', '自国'), data.get(f'{opp}_country', '敵国')
     my_nuke, my_colony = data.get(f'{me}_nuke', 0), data.get(f'{me}_colony', 0)
 
-    # --- 修正された勝利判定 ---
+    # 勝利判定 (本土HPが0以下)
     if data[f"{me}_hp"] <= 0:
-         st.error(f"【 敗北 】 {my_name}の本土が陥落しました。"); st.stop()
+         st.error(f"【 敗北 】 {my_name}の本土が沈黙しました。"); st.stop()
     if data[f"{opp}_hp"] <= 0:
-        st.success(f"【 勝利 】 {enemy_name}の本土を完全制圧しました！"); st.stop()
+        st.success(f"【 勝利 】 {enemy_name}の本土を完全に制圧しました！"); st.stop()
 
-    # 表示
+    # 情報表示
     n_owner = data.get('neutral_owner', 'none')
-    n_text = "未占領" if n_owner == 'none' else (my_name if n_owner == me else enemy_name)
-    st.write(f"🏳️ **中立支配:** {n_text} | ⚔️ **敵国 {enemy_name}:** 領土 {data[f'{opp}_hp']:.0f} / 植民地 {data[f'{opp}_colony']:.0f}")
+    n_disp = "未占領" if n_owner == 'none' else (my_name if n_owner == me else enemy_name)
+    st.write(f"🏳️ **中立地帯支配者:** {n_disp} | ⚔️ **敵国 {enemy_name}**")
     
     logs = "".join([f"<div>{m}</div>" for m in data.get('chat', [])[-3:]])
     st.markdown(f"<div style='background:#050505; padding:8px; border:1px solid #333; height:80px; font-size:0.8rem;'>{logs}</div>", unsafe_allow_html=True)
 
     st.markdown(f"**{my_name}** [通常盾:{data[f'{me}_shield']} / 対核盾:{data[f'{me}_nuke_shield_count']}]")
     st.markdown(f"""
-        <div class="status-row"><div class="status-label">領土</div><div class="bar-bg"><div class="fill-hp" style="width:{data[f'{me}_hp']/10}%"></div></div></div>
+        <div class="status-row"><div class="status-label">領土(HP)</div><div class="bar-bg"><div class="fill-hp" style="width:{data[f'{me}_hp']/10}%"></div></div></div>
         <div class="status-row"><div class="status-label">植民地</div><div class="bar-bg"><div class="fill-sh" style="width:{my_colony}%"></div></div></div>
         <div class="status-row"><div class="status-label">核開発</div><div class="bar-bg"><div class="fill-nk" style="width:{my_nuke/2}%"></div></div></div>
     """, unsafe_allow_html=True)
 
     if data['turn'] == me:
+        # ターン開始時の中立地帯ボーナス
         if n_owner == me and data['ap'] == 2:
             my_nuke = min(200, my_nuke + 15)
             sync(st.session_state.room_id, {f"{me}_nuke": my_nuke})
@@ -120,41 +123,47 @@ else:
             if st.button("🛡️防衛"):
                 if my_colony >= 20:
                     s1, s2 = (1 if random.random() < 0.25 else 0), (1 if random.random() < 0.066 else 0)
-                    sync(st.session_state.room_id, {f"{me}_colony": my_colony-20, f"{me}_shield": data[f"{me}_shield"]+s1, f"{me}_nuke_shield_count": data[f"{me}_nuke_shield_count"]+s2, "ap": data['ap']-1, "chat": data['chat']+[f"🛡️ {my_name}: 防衛構築"]}); st.rerun()
+                    sync(st.session_state.room_id, {f"{me}_colony": my_colony-20, f"{me}_shield": data[f"{me}_shield"]+s1, f"{me}_nuke_shield_count": data[f"{me}_nuke_shield_count"]+s2, "ap": data['ap']-1, "chat": data['chat']+[f"🛡️ {my_name}: 防衛網構築"]}); st.rerun()
                 else: st.warning("植民地不足（防衛不可）")
 
         with c3:
             if st.button("🕵️工作"):
                 sn, ss = (random.random() < 0.5), (random.random() < 0.2)
-                up = {"ap": data['ap']-1, "chat": data['chat']+[f"🕵️ {my_name}: 工作員派遣"]}
+                up = {"ap": data['ap']-1, "chat": data['chat']+[f"🕵️ {my_name}: 特殊工作"]}
                 if sn: up[f"{opp}_nuke"] = max(0, data[f"{opp}_nuke"]-100)
                 if ss: up[f"{opp}_nuke_shield_count"] = max(0, data[f"{opp}_nuke_shield_count"]-1)
                 sync(st.session_state.room_id, up); st.rerun()
 
         with c4:
-            target = st.radio("攻撃先", ["敵国", "中立地帯"], horizontal=True, label_visibility="collapsed")
+            target = st.radio("ターゲット", ["敵国", "中立地帯"], horizontal=True, label_visibility="collapsed")
             if st.button("⚔️進軍"):
                 if target == "中立地帯":
-                    sync(st.session_state.room_id, {"neutral_owner": me, "ap": data['ap']-1, "chat": data['chat']+[f"🏳️ {my_name}: 中立地帯を支配"]}); st.rerun()
+                    sync(st.session_state.room_id, {"neutral_owner": me, "ap": data['ap']-1, "chat": data['chat']+[f"🏳️ {my_name}: 中立地帯を占領"]}); st.rerun()
                 else:
                     if data[f"{opp}_shield"] > 0:
                         sync(st.session_state.room_id, {f"{opp}_shield": data[f"{opp}_shield"]-1, "ap": data['ap']-1, "chat": data['chat']+[f"🛡️ {enemy_name}: 盾で防御"]}); st.rerun()
                     else:
                         dmg = (45 + (my_nuke*0.53)) + random.randint(-5, 5)
-                        new_col = max(0, data[f'{opp}_colony'] - dmg)
-                        # 植民地を削りきった分だけ本土HPにダメージ
-                        hp_dmg = max(0, dmg - data[f'{opp}_colony']) if dmg > data[f'{opp}_colony'] else 0
-                        sync(st.session_state.room_id, {f"{opp}_colony": new_col, f"{opp}_hp": max(0, data[f'{opp}_hp'] - hp_dmg), "ap": data['ap']-1, "chat": data['chat']+[f"⚔️ {my_name}: 進撃"]}); st.rerun()
+                        rem_colony = data[f'{opp}_colony']
+                        new_colony = max(0, rem_colony - dmg)
+                        # 植民地を削りきった余剰分を本土ダメージに
+                        hp_dmg = max(0, dmg - rem_colony) if dmg > rem_colony else 0
+                        sync(st.session_state.room_id, {f"{opp}_colony": new_colony, f"{opp}_hp": max(0, data[f'{opp}_hp'] - hp_dmg), "ap": data['ap']-1, "chat": data['chat']+[f"⚔️ {my_name}: 本土攻撃"]}); st.rerun()
 
         with c5:
             if st.button("🚩占領"):
                 rebel = random.random() < 0.33
-                sync(st.session_state.room_id, {f"{me}_colony": my_colony+55, f"{me}_nuke": max(0, my_nuke-(30 if rebel else 0)), "ap": data['ap']-1, "chat": data['chat']+[f"🚩 {my_name}: 占領"]}); st.rerun()
+                sync(st.session_state.room_id, {f"{me}_colony": my_colony+55, f"{me}_nuke": max(0, my_nuke-(30 if rebel else 0)), "ap": data['ap']-1, "chat": data['chat']+[f"🚩 {my_name}: 植民地拡大"]}); st.rerun()
 
-        # 神風 & 核
+        # 特殊攻撃
         if data[f"{me}_hp"] <= 200:
             if st.button("🏮 神風 (KAMIKAZE) 実行", type="primary"):
-                sync(st.session_state.room_id, {f"{opp}_hp": max(0, data[f"{opp}_hp"]-400), f"{me}_colony": 0, f"{me}_hp": data[f"{me}_hp"]*0.1, "ap": 0, "chat": data['chat']+[f"🏮 {my_name}: 神風特攻！"]}); st.rerun()
+                sync(st.session_state.room_id, {
+                    f"{opp}_hp": max(0, data[f"{opp}_hp"] - 400),
+                    f"{me}_colony": 0, 
+                    f"{me}_hp": data[f"{me}_hp"] * 0.1, 
+                    "ap": 0, "chat": data['chat']+[f"🏮 {my_name}: 神風特攻！敵本土を強襲"]
+                }); st.rerun()
 
         if my_nuke >= 200:
             if st.button("🚨 核兵器投下", type="primary"):
@@ -165,7 +174,7 @@ else:
 
         if data['ap'] <= 0: sync(st.session_state.room_id, {"turn": opp, "ap": 2}); st.rerun()
     else:
-        st.info("敵国のターンです...")
+        st.info("敵国の行動を待機中...")
         time.sleep(4); st.rerun()
 
     with st.form("chat", clear_on_submit=True):
